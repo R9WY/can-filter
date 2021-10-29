@@ -2,3 +2,6 @@
 /bin
 /.vscode
 can-filter.*
+can-filter
+can-filter-arm
+*.o

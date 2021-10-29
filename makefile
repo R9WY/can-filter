@@ -3,7 +3,7 @@ PREFIX = /usr/local/bin
 INC=-I /usr/local/include -L /usr/local/lib
 LIB=
 CFLAGS=$(INC) $(LIB) -m32 -c 
-LDFLAGS=$(INC) $(LIB)
+LDFLAGS=$(INC) $(LIB) -m32
 
 SOURCES=main.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
