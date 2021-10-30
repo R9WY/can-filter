@@ -1,7 +1,10 @@
 /obj
 /bin
 /.vscode
+/test
 can-filter.*
 can-filter
 can-filter-arm
 *.o
+test-udp-client
+test-udp-server
