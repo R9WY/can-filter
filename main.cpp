@@ -42,9 +42,11 @@ static constexpr __suseconds_t WAIT_BETWEEN_SELECT_US = 250000L;
 
 using namespace std;
 
-//
+//флаг выхода
 volatile sig_atomic_t flag_exit = 0;
-
+/********************************************************
+* Функция вызова при получении SIGINT и SIGTERM
+*/
 void check_signal(int sig)
 { // can be called asynchronously
   flag_exit = 1; // set flag
@@ -118,7 +120,7 @@ int main(int argc, char* argv[])
   auto cur_value_calc=0;
   int c;
 
- //Register signals
+ //Регистрируем сигналы
  signal(SIGINT, check_signal);
  signal(SIGTERM, check_signal);
 
@@ -170,18 +172,17 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
         //exit(EXIT_FAILURE);
     }
 
-   memset(&servaddr, 0, sizeof(servaddr));
-   in_addr_t ip_to_num;
+    memset(&servaddr, 0, sizeof(servaddr));
+    in_addr_t ip_to_num;
 
-   cout << "Connecting to address " <<ip_addr << " port "<<udp_port<<endl;
+    cout << "Connecting to address " <<ip_addr << " port "<<udp_port<<endl;
 
-    int erStat = inet_pton(AF_INET, ip_addr, &ip_to_num);
-    if (erStat <= 0) { throw std::invalid_argument( "Error in IP translation to special numeric format"); }
+    if (inet_pton(AF_INET, ip_addr, &ip_to_num) <= 0) { throw std::invalid_argument( "Error in IP translation to special numeric format"); }
 
-   // Filling server information
     servaddr.sin_family = AF_INET;
     servaddr.sin_port = htons(udp_port);
     servaddr.sin_addr.s_addr = ip_to_num;
+
 /*--------------------------------------------------
 * Считываем строки, проверяем и обрабатываем текст
 */
@@ -189,6 +190,7 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
   fd_set fds;
 
   // while (getline(cin, buffer)){
+
     while (!flag_exit)
     {
         //асинхронное чтение cin, чтобы можно было отследить сигналы завершения программы
@@ -207,28 +209,30 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
             }
             usleep(10);
         }
-       //проверяем строку на соответсвие шаблону
-   //    if (string(addr_str,0,2)==" (")
 
+       //проверяем строку на соответсвие шаблону
+       //
+       // if (string(addr_str,0,2)==" (")
        if (std::regex_search (buffer,m,regex_e))
         {
+            //получаем блок строки, содержащий адрес
             addr_str=string(buffer,37,8);
             deleteSpaces(addr_str);
             //если расширенный пакет, используем 5,6 байт, иначе 2,3
             if (string(addr_str,0,3)=="1E0")addr_str=string(addr_str,4,2);
              else { addr_str=string(addr_str,1,2);}
 
-            //Преобразуем в десятичное и берем только 11 бит по маске DEF_MAX_ID
+            //Преобразуем в десятичное и берем только 11 бит по маске DEF_MAX_ID. Если совпадаем, отправляем на сервер
             cur_value_calc=Hex2Int(addr_str.c_str(), NULL)&DEF_MAX_ID;
 
             if (filter_value_calc==cur_value_calc)
             {
              sendto(sockfd, (const char *)buffer.c_str(), buffer.length(), MSG_CONFIRM, (const struct sockaddr *) &servaddr,sizeof(servaddr));
-             cout<<buffer<<endl;
+             //cout<<buffer<<endl;
             }
 
         } //if (std::regex_search
-        //if (flag_exit==1) break;
+
     } // while (getline
 } // try
    catch ( exception &e )

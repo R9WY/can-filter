@@ -8,3 +8,5 @@ can-filter-arm
 *.o
 test-udp-client
 test-udp-server
+candump-emu
+
