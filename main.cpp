@@ -12,8 +12,8 @@
 #include <regex>
 #include <sys/select.h>
 
-static constexpr int STD_INPUT = 0;
-static constexpr __suseconds_t WAIT_BETWEEN_SELECT_US = 250000L;
+//static constexpr int STD_INPUT = 0;
+//static constexpr __suseconds_t WAIT_BETWEEN_SELECT_US = 250000L;
 
 //* UDP адрес по умолчанию
 #define DEF_UDP_ADDR "127.0.0.1"
@@ -31,7 +31,7 @@ static constexpr __suseconds_t WAIT_BETWEEN_SELECT_US = 250000L;
 #define DEF_MAX_ID 0x7f
 
 //* Шаблон корректного сообщения
-#define DEF_CAN_TEMPL R"( [(]\w{4}[-]\w{2}[-]\w{2} \w{2}[:]\w{2}[:]\w{2}[.]\w{6}[)])"
+//#define DEF_CAN_TEMPL R"( [(]\w{4}[-]\w{2}[-]\w{2} \w{2}[:]\w{2}[:]\w{2}[.]\w{6}[)])"
 
 //* Подсказка
 #define _USAGE_TEXT_ "Usage: can-filter [options] \nOptions:\n\
@@ -43,16 +43,16 @@ static constexpr __suseconds_t WAIT_BETWEEN_SELECT_US = 250000L;
 using namespace std;
 
 //флаг выхода
-volatile sig_atomic_t flag_exit = 0;
+//volatile sig_atomic_t flag_exit = 0;
 /********************************************************
 * Функция вызова при получении SIGINT и SIGTERM
 */
-void check_signal(int sig)
-{ // can be called asynchronously
-  flag_exit = 1; // set flag
+//void check_signal(int sig)
+//{ // can be called asynchronously
+//  flag_exit = 1; // set flag
 
-  cout << "Catch terminate signal" << endl;
-}
+//  cout << "Catch terminate signal" << endl;
+//}
 
 /********************************************************
 * Функция преобразования из HEX в DEC
@@ -113,16 +113,16 @@ int main(int argc, char* argv[])
   string buffer,addr_str;
 
   // определяем рег. выражение
-  std::regex regex_e (DEF_CAN_TEMPL);
-  std::smatch m;
+  //std::regex regex_e (DEF_CAN_TEMPL);
+  //std::smatch m;
 
   auto filter_value_calc=DEF_MIN_ID;
   auto cur_value_calc=0;
   int c;
 
  //Регистрируем сигналы
- signal(SIGINT, check_signal);
- signal(SIGTERM, check_signal);
+// signal(SIGINT, check_signal);
+// signal(SIGTERM, check_signal);
 
 try
    {
@@ -183,14 +183,16 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
     servaddr.sin_port = htons(udp_port);
     servaddr.sin_addr.s_addr = ip_to_num;
 
+
+std::ios::sync_with_stdio(false);
 /*--------------------------------------------------
 * Считываем строки, проверяем и обрабатываем текст
 */
-  struct timeval tv = { 0L, WAIT_BETWEEN_SELECT_US };
-  fd_set fds;
+//  struct timeval tv = { 0L, WAIT_BETWEEN_SELECT_US };
+//  fd_set fds;
 
-  // while (getline(cin, buffer)){
-
+   while (getline(cin, buffer)){
+/*
     while (!flag_exit)
     {
         //асинхронное чтение cin, чтобы можно было отследить сигналы завершения программы
@@ -209,11 +211,11 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
             }
             usleep(10);
         }
-
+*/
        //проверяем строку на соответсвие шаблону
        //
-       // if (string(addr_str,0,2)==" (")
-       if (std::regex_search (buffer,m,regex_e))
+        if (string(buffer,0,2)==" (")
+  //     if (std::regex_search (buffer,m,regex_e))
         {
             //получаем блок строки, содержащий адрес
             addr_str=string(buffer,37,8);
