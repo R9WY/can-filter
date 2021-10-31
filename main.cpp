@@ -10,6 +10,10 @@
 #include <string.h>
 #include <ctype.h>
 #include <regex>
+#include <sys/select.h>
+
+static constexpr int STD_INPUT = 0;
+static constexpr __suseconds_t WAIT_BETWEEN_SELECT_US = 250000L;
 
 //* UDP адрес по умолчанию
 #define DEF_UDP_ADDR "127.0.0.1"
@@ -44,6 +48,8 @@ volatile sig_atomic_t flag_exit = 0;
 void check_signal(int sig)
 { // can be called asynchronously
   flag_exit = 1; // set flag
+
+  cout << "Catch terminate signal" << endl;
 }
 
 /********************************************************
@@ -90,6 +96,7 @@ void deleteSpaces(std::string& string)
     string.erase(0, strBegin);
 }
 
+
 /********************************************************
 * MAIN
 */
@@ -134,8 +141,6 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
       continue;
 
     case 'a': // IP адрес сервера
-      //printf("parameter 'b' specified with the value %s\n", optarg);
-        //ip_addr=string(optarg);
         strncpy(ip_addr,optarg,11);
       continue;
 
@@ -180,11 +185,31 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
 /*--------------------------------------------------
 * Считываем строки, проверяем и обрабатываем текст
 */
+  struct timeval tv = { 0L, WAIT_BETWEEN_SELECT_US };
+  fd_set fds;
 
-
-   while (getline(cin, buffer))
+  // while (getline(cin, buffer)){
+    while (!flag_exit)
     {
+        //асинхронное чтение cin, чтобы можно было отследить сигналы завершения программы
+        //завершаем программу только после завершения отправки пакета на UDP-сервер
+        while (!flag_exit)
+        {
+            //int ready = select(STD_INPUT + 1, &fds, NULL, NULL, &tv);
+            FD_ZERO(&fds);
+            FD_SET(STD_INPUT, &fds);
+
+            if (select(STD_INPUT + 1, &fds, NULL, NULL, &tv) > 0)
+            {
+            // читаем строку, если поток закрылся, то выходим
+            if (!std::getline(std::cin, buffer))flag_exit=1;
+            break;
+            }
+            usleep(10);
+        }
        //проверяем строку на соответсвие шаблону
+   //    if (string(addr_str,0,2)==" (")
+
        if (std::regex_search (buffer,m,regex_e))
         {
             addr_str=string(buffer,37,8);
@@ -203,7 +228,7 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
             }
 
         } //if (std::regex_search
-        if (flag_exit==1) break;
+        //if (flag_exit==1) break;
     } // while (getline
 } // try
    catch ( exception &e )
