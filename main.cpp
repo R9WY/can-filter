@@ -12,6 +12,8 @@
 #include <regex>
 #include <sys/select.h>
 
+
+//структуры для асинхронного чтения
 static constexpr int STD_INPUT = 0;
 static constexpr __suseconds_t WAIT_BETWEEN_SELECT_US = 250000L;
 
@@ -37,7 +39,7 @@ static constexpr __suseconds_t WAIT_BETWEEN_SELECT_US = 250000L;
 #define _USAGE_TEXT_ "Usage: can-filter [options] \nOptions:\n\
     -a [ip address]\t\t Destination UDP address (127.0.0.1)\n\
     -p [num]\t\t\t Destination UDP port number (from 1000 to 20000) default:8889\n\
-    -f [hexnum]\t\t Filter CAN ID (from 0x01 to 0x7F)\n\n\
+    -f [hexnum]\t\t\t Filter CAN ID (from 0x01 to 0x7F)\n\n\
     Example: can-filter -a 192.168.1.1 -p 8889 -f 0x05 < dump.txt"
 
 using namespace std;
@@ -169,7 +171,6 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
 */
   if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
         throw std::runtime_error( "Socket creation failed");
-        //exit(EXIT_FAILURE);
     }
 
     memset(&servaddr, 0, sizeof(servaddr));
@@ -244,4 +245,3 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
 close(sockfd);
 return 0;
 } // main
-
