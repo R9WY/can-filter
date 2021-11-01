@@ -35,6 +35,12 @@ static constexpr __suseconds_t WAIT_BETWEEN_SELECT_US = 250000L;
 //* Шаблон корректного сообщения
 #define DEF_CAN_TEMPL R"( [(]\w{4}[-]\w{2}[-]\w{2} \w{2}[:]\w{2}[:]\w{2}[.]\w{6}[)])"
 
+// мин. количество символов в разбираемой строке
+#define DEF_MIN_PROT_STR_LEN    60
+
+#define DEF_PROT_ADDR_POS       37
+#define DEF_PROT_NMT_ADDR_POS   51
+
 //* Подсказка
 #define _USAGE_TEXT_ "Usage: can-filter [options] \nOptions:\n\
     -a [ip address]\t\t Destination UDP address (127.0.0.1)\n\
@@ -91,7 +97,6 @@ T Hex2Int(const char* const Hexstr, bool* Overflow)
 /********************************************************
 * Процедура удаления пробелов перед и после текста
 * \param[in\out]  string   преобразуемая строка
-*/
 void deleteSpaces(std::string& string)
 {
     size_t strBegin=string.find_first_not_of(' ');
@@ -99,7 +104,19 @@ void deleteSpaces(std::string& string)
     string.erase(strEnd+1, string.size() - strEnd);
     string.erase(0, strBegin);
 }
+*/
 
+/********************************************************
+* Процедура получения первого токена из строки с пробелами
+* \param[in\out]  string   преобразуемая строка
+*/
+void getFirstTok(std::string& string)
+{
+    size_t strBegin=string.find_first_not_of(' ');
+    if (strBegin!=std::string::npos)string.erase(0, strBegin);
+    size_t strEnd=string.find_first_of(' ');
+    if (strEnd!=std::string::npos)string.erase(strEnd, string.size() - strEnd);
+}
 
 /********************************************************
 * MAIN
@@ -120,7 +137,7 @@ int main(int argc, char* argv[])
 
   auto filter_value_calc=DEF_MIN_ID;
   auto cur_value_calc=0;
-  int c;
+  int c,len;
 
  //Регистрируем сигналы
  signal(SIGINT, check_signal);
@@ -190,9 +207,10 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
   struct timeval tv = { 0L, WAIT_BETWEEN_SELECT_US };
   fd_set fds;
 
-  // while (getline(cin, buffer)){
+// можно заменить на синхронное чтение
+//while (getline(cin, buffer)){
 
-    while (!flag_exit)
+   while (!flag_exit)
     {
         //асинхронное чтение cin, чтобы можно было отследить сигналы завершения программы
         //завершаем программу только после завершения отправки пакета на UDP-сервер
@@ -211,25 +229,47 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
             usleep(10);
         }
 
+        // короткие строки сразу игнорируем
+       if (buffer.length()<DEF_MIN_PROT_STR_LEN) continue;
+
        //проверяем строку на соответсвие шаблону
-       //
        // if (string(addr_str,0,2)==" (")
        if (std::regex_search (buffer,m,regex_e))
         {
             //получаем блок строки, содержащий адрес
-            addr_str=string(buffer,37,8);
-            deleteSpaces(addr_str);
-            //если расширенный пакет, используем 5,6 байт, иначе 2,3
-            if (string(addr_str,0,3)=="1E0")addr_str=string(addr_str,4,2);
-             else { addr_str=string(addr_str,1,2);}
+            addr_str=string(buffer,DEF_PROT_ADDR_POS,8);
+            getFirstTok(addr_str);
+            len=addr_str.length();
+            cur_value_calc=0;
+            // отбрасываем пакеты не содержащие NodeId, извлекаем номер из соответсвующих
+            switch (len)
+            {
+               case 3:
+                    // если NMT пакет, тогда NodeId - второй байт из блока данных
+                    if (addr_str=="000")
+                        {
+                         cur_value_calc=Hex2Int(string(buffer,DEF_PROT_NMT_ADDR_POS,2).c_str(), NULL);
+                         break;
+                        }
+                    // если обычный пакет, то 2 и 3 байт содержат NodeId
+                    // 181-57F, 581-5FF,601-67F, 701-77F
+                    // Преобразуем в десятичное и берем по маске DEF_MAX_ID.
+                    cur_value_calc=Hex2Int(string(addr_str,1,2).c_str(), NULL)&DEF_MAX_ID;
+                    break;
+               case 8:
+                //если расширенный пакет, используем 5,6 байт и берем по маске DEF_MAX_ID
+                if ((string(addr_str,0,3)=="1E0"))cur_value_calc=Hex2Int(string(addr_str,4,2).c_str(), NULL)&DEF_MAX_ID;
+                break;
 
-            //Преобразуем в десятичное и берем только 11 бит по маске DEF_MAX_ID. Если совпадаем, отправляем на сервер
-            cur_value_calc=Hex2Int(addr_str.c_str(), NULL)&DEF_MAX_ID;
+               default:
+                break;
+            } // switch len
 
+            //Если совпадает, отправляем на сервер
             if (filter_value_calc==cur_value_calc)
             {
-             sendto(sockfd, (const char *)buffer.c_str(), buffer.length(), MSG_CONFIRM, (const struct sockaddr *) &servaddr,sizeof(servaddr));
-             //cout<<buffer<<endl;
+              sendto(sockfd, (const char *)buffer.c_str(), buffer.length(), MSG_CONFIRM, (const struct sockaddr *) &servaddr,sizeof(servaddr));
+              cout<<buffer<<endl;
             }
 
         } //if (std::regex_search
