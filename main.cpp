@@ -13,7 +13,7 @@
 #include <sys/select.h>
 
 
-//структуры для асинхронного чтения
+//* структуры для асинхронного чтения
 static constexpr int STD_INPUT = 0;
 static constexpr __suseconds_t WAIT_BETWEEN_SELECT_US = 250000L;
 
@@ -35,10 +35,12 @@ static constexpr __suseconds_t WAIT_BETWEEN_SELECT_US = 250000L;
 //* Шаблон корректного сообщения
 #define DEF_CAN_TEMPL R"( [(]\w{4}[-]\w{2}[-]\w{2} \w{2}[:]\w{2}[:]\w{2}[.]\w{6}[)])"
 
-// мин. количество символов в разбираемой строке
+//* мин. количество символов в разбираемой строке
 #define DEF_MIN_PROT_STR_LEN    60
 
+//* позиция адреса в логе
 #define DEF_PROT_ADDR_POS       37
+//* позиция в логе в пвкете NMT
 #define DEF_PROT_NMT_ADDR_POS   51
 
 //* Подсказка
@@ -50,7 +52,7 @@ static constexpr __suseconds_t WAIT_BETWEEN_SELECT_US = 250000L;
 
 using namespace std;
 
-//флаг выхода
+//* флаг выхода
 volatile sig_atomic_t flag_exit = 0;
 /********************************************************
 * Функция вызова при получении SIGINT и SIGTERM
@@ -94,20 +96,9 @@ T Hex2Int(const char* const Hexstr, bool* Overflow)
 }
 
 
-/********************************************************
-* Процедура удаления пробелов перед и после текста
-* \param[in\out]  string   преобразуемая строка
-void deleteSpaces(std::string& string)
-{
-    size_t strBegin=string.find_first_not_of(' ');
-    size_t strEnd=string.find_last_not_of(' ');
-    string.erase(strEnd+1, string.size() - strEnd);
-    string.erase(0, strBegin);
-}
-*/
 
 /********************************************************
-* Процедура получения первого токена из строки с пробелами
+* Процедура выборки первого токена из строки с пробелами
 * \param[in\out]  string   преобразуемая строка
 */
 void getFirstTok(std::string& string)
@@ -135,8 +126,9 @@ int main(int argc, char* argv[])
   std::regex regex_e (DEF_CAN_TEMPL);
   std::smatch m;
 
-  auto filter_value_calc=DEF_MIN_ID;
-  auto cur_value_calc=0;
+  //значение выбираемого CanId
+  auto filter_can_id=DEF_MIN_ID;
+  auto cur_can_id=0;
   int c,len;
 
  //Регистрируем сигналы
@@ -167,8 +159,8 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
 
     case 'f': // Значение фильтра
        //преобразуем в число, проверяем диапазон
-       filter_value_calc=Hex2Int(optarg, NULL);
-       if ((filter_value_calc<DEF_MIN_ID)||(filter_value_calc>DEF_MAX_ID)) throw std::invalid_argument( "Invalid filter argument value");
+       filter_can_id=Hex2Int(optarg, NULL);
+       if ((filter_can_id<DEF_MIN_ID)||(filter_can_id>DEF_MAX_ID)) throw std::invalid_argument( "Invalid filter argument value");
       continue;
 
     case 'h':
@@ -232,7 +224,7 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
         // короткие строки сразу игнорируем
        if (buffer.length()<DEF_MIN_PROT_STR_LEN) continue;
 
-       //проверяем строку на соответсвие шаблону
+       //проверяем строку на соответствие шаблону
        // if (string(addr_str,0,2)==" (")
        if (std::regex_search (buffer,m,regex_e))
         {
@@ -240,7 +232,7 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
             addr_str=string(buffer,DEF_PROT_ADDR_POS,8);
             getFirstTok(addr_str);
             len=addr_str.length();
-            cur_value_calc=0;
+            cur_can_id=0;
             // отбрасываем пакеты не содержащие NodeId, извлекаем номер из соответсвующих
             switch (len)
             {
@@ -248,17 +240,17 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
                     // если NMT пакет, тогда NodeId - второй байт из блока данных
                     if (addr_str=="000")
                         {
-                         cur_value_calc=Hex2Int(string(buffer,DEF_PROT_NMT_ADDR_POS,2).c_str(), NULL);
+                         cur_can_id=Hex2Int(string(buffer,DEF_PROT_NMT_ADDR_POS,2).c_str(), NULL);
                          break;
                         }
                     // если обычный пакет, то 2 и 3 байт содержат NodeId
                     // 181-57F, 581-5FF,601-67F, 701-77F
                     // Преобразуем в десятичное и берем по маске DEF_MAX_ID.
-                    cur_value_calc=Hex2Int(string(addr_str,1,2).c_str(), NULL)&DEF_MAX_ID;
+                    cur_can_id=Hex2Int(string(addr_str,1,2).c_str(), NULL)&DEF_MAX_ID;
                     break;
                case 8:
                 //если расширенный пакет, используем 5,6 байт и берем по маске DEF_MAX_ID
-                if ((string(addr_str,0,3)=="1E0"))cur_value_calc=Hex2Int(string(addr_str,4,2).c_str(), NULL)&DEF_MAX_ID;
+                if ((string(addr_str,0,3)=="1E0"))cur_can_id=Hex2Int(string(addr_str,4,2).c_str(), NULL)&DEF_MAX_ID;
                 break;
 
                default:
@@ -266,10 +258,10 @@ while ((c = getopt(argc, argv, ":a:p:f:h")) != -1)
             } // switch len
 
             //Если совпадает, отправляем на сервер
-            if (filter_value_calc==cur_value_calc)
+            if (filter_can_id==cur_can_id)
             {
-              sendto(sockfd, (const char *)buffer.c_str(), buffer.length(), MSG_CONFIRM, (const struct sockaddr *) &servaddr,sizeof(servaddr));
-              cout<<buffer<<endl;
+              sendto(sockfd, (const char *)buffer.c_str(), buffer.length(), 0, (const struct sockaddr *) &servaddr,sizeof(servaddr));
+              //cout<<buffer<<endl;
             }
 
         } //if (std::regex_search
